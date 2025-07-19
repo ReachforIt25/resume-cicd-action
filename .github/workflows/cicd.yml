@@ -15,7 +15,7 @@ permissions:
 env:
     AWS_REGION: us-east-1
     AWS_ROLE:  ${{ secrets.AWS_ACTION_ROLE}}  
-    ECR_REPO_NAME: dev            # set this to your preferred AWS region, e.g. us-west-1
+    ECR_REPO_NAME: dev            
     IMAGE_TAG: ${{github.run_number}}
     
 
@@ -26,12 +26,11 @@ jobs:
           - name: clone repo
             uses: actions/checkout@v3
 
-          - name: Configure AWS credentials
+          - name: Configure AWS credentials using OIDC
             uses: aws-actions/configure-aws-credentials@v1
             with:
-              # aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}                  we can either use aws access key and secret key or use ROLE for security measures.
-              # aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-              role-to-assume: ${{env.AWS_ROLE}} # OICD 
+              
+              role-to-assume: ${{ env.AWS_ROLE}} # OICD 
               aws-region: ${{ env.AWS_REGION }}
 
           - name: login to ecr
