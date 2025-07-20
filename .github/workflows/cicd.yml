@@ -17,7 +17,13 @@ env:
     AWS_ROLE:  ${{ secrets.AWS_ACTION_ROLE }}  
     ECR_REPO_NAME: dev            
     IMAGE_TAG: ${{github.run_number}}
-    
+    ECS_SERVICE: nginx-service              # set this to your Amazon ECS service name
+    ECS_CLUSTER: nginx-cluster                 # set this to your Amazon ECS cluster name
+    ECS_TASK_DEFINITION: .github/workflows/td.json # set this to the path to your Amazon ECS task definition
+                                                # file, e.g. .aws/task-definition.json
+    CONTAINER_NAME: nginx       # set this to the name of the container in the
+                                                # containerDefinitions section of your task definition
+      
 
 jobs:
     build-and-test:
@@ -36,16 +42,27 @@ jobs:
           # - name: Build and run tests with Maven
           #   run: mvn clean test
 
-          - name: Set up Python
-            uses: actions/setup-python@v4
-            with:
-                python-version: '3.10'
+          # - name: Set up Python
+          #   uses: actions/setup-python@v4
+          #   with:
+          #       python-version: '3.10'
 
-          - name: Install dependencies
-            run: pip install -r requirements.txt
+          # - name: Install dependencies
+          #   run: pip install -r requirements.txt
 
-          - name: Run Pytest
-            run: pytest
+          # - name: Run Pytest
+          #   run: pytest
+
+
+           # 🔍 SonarQube Scan
+          # - name: SonarQube Scan
+          #   env:
+          #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          #   run: |
+          #     mvn sonar:sonar \
+          #       -Dsonar.projectKey=${{ env.SONAR_PROJECT_KEY }} \
+          #       -Dsonar.host.url=${{ env.SONAR_HOST_URL }} \
+          #       -Dsonar.login=${{ secrets.SONAR_TOKEN }}
 
 
 
@@ -84,7 +101,23 @@ jobs:
     #   needs: Build
     #   steps:
       
- 
+          - name: Fill in the new image ID in the Amazon ECS task definition
+            id: render-task-def
+            uses: aws-actions/amazon-ecs-render-task-definition@v1
+            with:
+              task-definition: ${{ env.ECS_TASK_DEFINITION }}
+              container-name: ${{ env.CONTAINER_NAME }}
+              image: ${{ steps.build-image.outputs.image }}
+
+          - name: Deploy to Amazon ECS 
+            uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+            with:
+              task-definition: ${{ steps.render-task-def.outputs.task-definition }}
+              service: ${{ env.ECS_SERVICE }}
+              cluster: ${{ env.ECS_CLUSTER }}
+              
+              wait-for-service-stability: false
+  
 
 
 
