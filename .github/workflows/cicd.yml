@@ -22,6 +22,9 @@ env:
     ECS_TASK_DEFINITION: .github/workflows/td.json # set this to the path to your Amazon ECS task definition file, e.g. .aws/task-definition.json
     CONTAINER_NAME: nginx      # set this to the name of the container in the  containerDefinitions section of your task definition                                         
     IMAGE: 571600845324.dkr.ecr.us-east-1.amazonaws.com/dev:10
+    SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+    SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    SONAR_PROJECT_KEY: my-resume
 
 jobs:
     build-and-test:
@@ -55,14 +58,12 @@ jobs:
 
 
            # 🔍 SonarQube Scan
-          # - name: SonarQube Scan
-          #   env:
-          #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          #   run: |
-          #     mvn sonar:sonar \
-          #       -Dsonar.projectKey=${{ env.SONAR_PROJECT_KEY }} \
-          #       -Dsonar.host.url=${{ env.SONAR_HOST_URL }} \
-          #       -Dsonar.login=${{ secrets.SONAR_TOKEN }}
+          - name: SonarQube Scan
+            run: |
+              mvn sonar:sonar \
+                -Dsonar.projectKey=${{ env.SONAR_PROJECT_KEY }} \
+                -Dsonar.host.url=${{ env.SONAR_HOST_URL }} \
+                -Dsonar.login=${{ env.SONAR_TOKEN }}
 
 
 
