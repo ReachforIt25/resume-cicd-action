@@ -49,7 +49,9 @@ jobs:
             run: pip install -r requirements.txt
 
           - name: Run Pytest
-            run: pytest
+            run: 
+              pip install pytest
+              pytest
 
 
            # 🔍 SonarQube Scan
