@@ -1,0 +1,140 @@
+name: buil test push and deploy image
+
+on:  
+    push:
+      branches:
+        - "main"
+    pull_request:
+      branches: [main]
+
+permissions:
+    id-token: write
+    contents: read
+
+env:
+    AWS_REGION: us-east-1
+    AWS_ROLE:  ${{ secrets.AWS_ACTION_ROLE }}  
+    ECR_REPO_NAME: dev            
+    IMAGE_TAG: ${{github.run_number}}
+    ECS_SERVICE: nginx-service              # set this to your Amazon ECS service name
+    ECS_CLUSTER: nginx-cluster                 # set this to your Amazon ECS cluster name
+    ECS_TASK_DEFINITION: td.json # set this to the path to your Amazon ECS task definition file, e.g. .aws/task-definition.json
+    CONTAINER_NAME: nginx      # set this to the name of the container in the  containerDefinitions section of your task definition                                         
+    IMAGE: 571600845324.dkr.ecr.us-east-1.amazonaws.com/dev:10
+    SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+    SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    SONAR_PROJECT_KEY: my-resume
+
+jobs:
+    build-and-test:
+        runs-on: ubuntu-latest   # this is a shared runner / github runner
+        steps:
+          - name: clone repo
+            uses: actions/checkout@v3
+
+
+          # - name: Set up Java
+          #   uses: actions/setup-java@v3
+          #   with:
+          #     distribution: 'temurin'
+          #     java-version: '17'  # or 11/21 depending on your project
+          # - name: Build and run tests with Maven
+          #   run: mvn clean test
+
+
+      # running unit test
+          - name: Set up Python
+            uses: actions/setup-python@v4
+            with:
+                python-version: '3.12.9'
+
+          - name: Install dependencies
+            run: pip install -r requirements.txt
+
+          - name: Run Pytest
+            run: 
+              pip install pytest
+              pytest
+
+
+      # 🔍 Static code analysis with SonarQube 
+
+          - name: Install SonarScanner CLI
+            run: |
+              curl -sSLo sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip
+              unzip sonar-scanner.zip
+              mv sonar-scanner-5.0.1.3006-linux sonar-scanner
+              echo "$(pwd)/sonar-scanner/bin" >> $GITHUB_PATH
+
+          - name: SonarQube Scan
+            run: |
+              sonar-scanner \
+                -Dsonar.projectKey=${{ env.SONAR_PROJECT_KEY }} \
+                -Dsonar.sources=. \
+                -Dsonar.host.url=${{ env.SONAR_HOST_URL }} \
+                -Dsonar.login=${{ env.SONAR_TOKEN }}
+
+     # configure AWS using OIDC
+          - name: Configure AWS credentials using OIDC
+            uses: aws-actions/configure-aws-credentials@v1
+            with:
+              
+              role-to-assume: ${{ env.AWS_ROLE }} # OIDC 
+              aws-region: ${{ env.AWS_REGION }}
+
+    # Login to ECR, Build Docker Image
+          - name: login to ecr
+            uses: aws-actions/amazon-ecr-login@v1
+            id: ecr-login
+          - name: build and tag image
+            id: build-and-push
+            run: docker build -t ${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPO_NAME }}:${{ env.IMAGE_TAG }} .
+               
+      # Scan the Docker image using Trivy       
+          - name: scan the image using trivy for vulnerabilities
+            uses: aquasecurity/trivy-action@master
+            with:
+              image-ref: "${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPO_NAME }}"  # Scans the built image
+              format: "table"
+              exit-code: "0"
+              severity: "CRITICAL,HIGH"
+
+     
+    # Push image to ECR
+          - name: push image to ecr
+            run:  docker push ${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPO_NAME }}:${{ env. IMAGE_TAG }}
+
+          - name: store image in github env
+            run: echo "IMAGE=${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPO_NAME}}:${{ env. IMAGE_TAG }}" >> $GITHUB_ENV
+
+
+    # deploy to AWS ECS  
+          - name: Fill in the new image ID in the Amazon ECS task definition
+            id: render-task-def
+            uses: aws-actions/amazon-ecs-render-task-definition@v1
+            with:
+              task-definition: ${{ env.ECS_TASK_DEFINITION }}
+              container-name: ${{ env.CONTAINER_NAME }}
+              # image: ${{ steps.build-image.outputs.image }}
+              image: ${{ env.IMAGE }}
+
+          - name: Deploy to Amazon ECS 
+            uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+            with:
+              task-definition: ${{ steps.render-task-def.outputs.task-definition }}
+              service: ${{ env.ECS_SERVICE }}
+              cluster: ${{ env.ECS_CLUSTER }}
+              
+              wait-for-service-stability: false
+  
+
+
+
+
+  
+
+
+
+
+
+
