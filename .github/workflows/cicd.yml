@@ -25,18 +25,27 @@ jobs:
         steps:
           - name: clone repo
             uses: actions/checkout@v3
-            
 
-          - name: Set up Java
-            uses: actions/setup-java@v3
+
+          # - name: Set up Java
+          #   uses: actions/setup-java@v3
+          #   with:
+          #     distribution: 'temurin'
+          #     java-version: '17'  # or 11/21 depending on your project
+
+          # - name: Build and run tests with Maven
+          #   run: mvn clean test
+
+          - name: Set up Python
+            uses: actions/setup-python@v4
             with:
-              distribution: 'temurin'
-              java-version: '17'  # or 11/21 depending on your project
+                python-version: '3.10'
 
-          - name: Build and run tests with Maven
-            run: mvn clean test
+          - name: Install dependencies
+            run: pip install -r requirements.txt
 
-
+          - name: Run Pytest
+            run: pytest
 
 
 
